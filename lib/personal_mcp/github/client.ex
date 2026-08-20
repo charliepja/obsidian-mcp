@@ -1,7 +1,7 @@
 defmodule PersonalMcp.Github.Client do
   @base_url "https://api.github.com"
 
-  defp config, do: Application.get_env(:mcp_server, :github)
+  defp config, do: Application.get_env(:personal_mcp, :github)
 
   defp headers do
     [
@@ -52,6 +52,18 @@ defmodule PersonalMcp.Github.Client do
       {:ok, %{status: status, body: resp_body}} ->
         {:error, "GitHub API error #{status}: #{inspect(resp_body["message"])}"}
 
+      {:error, reason} ->
+        {:error, "HTTP error: #{inspect(reason)}"}
+    end
+  end
+
+  def delete_file(path, sha, message) do
+    body = %{"message" => message, "sha" => sha}
+
+    case Req.delete(repo_url(path), json: body, headers: headers()) do
+      {:ok, %{status: 200}} -> :ok
+      {:ok, %{status: status, body: resp_body}} ->
+        {:error, "GitHub API error #{status}: #{inspect(resp_body["message"])}"}
       {:error, reason} ->
         {:error, "HTTP error: #{inspect(reason)}"}
     end

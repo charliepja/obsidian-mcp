@@ -1,7 +1,16 @@
 defmodule PersonalMcp.MCP.Protocol do
-  alias PersonalMcp.Tools.{DefineTask, UpdateTask, CompleteTask, ReviewTask}
+  alias PersonalMcp.Tools.{
+    GetTask,
+    DefineTask,
+    UpdateTask,
+    CompleteTask,
+    ReviewTask,
+    ArchiveTask,
+    AppendLog,
+    UpdateNotes
+  }
 
-  @protocol_version "2024-11-05"
+  @protocol_version "2025-11-25"
 
   def handle(%{"method" => "initialize", "id" => id}) do
     reply(id, %{
@@ -20,10 +29,14 @@ defmodule PersonalMcp.MCP.Protocol do
   def handle(%{"method" => "tools/call", "id" => id, "params" => %{"name" => name, "arguments" => args}}) do
     result =
       case name do
+        "get_task" -> GetTask.call(args)
         "define_task" -> DefineTask.call(args)
         "update_task" -> UpdateTask.call(args)
         "complete_task" -> CompleteTask.call(args)
         "review_task" -> ReviewTask.call(args)
+        "archive_task" -> ArchiveTask.call(args)
+        "append_log"   -> AppendLog.call(args)
+        "update_notes" -> UpdateNotes.call(args)
         _ -> {:error, "Unknown tool: #{name}"}
       end
 
@@ -43,6 +56,17 @@ defmodule PersonalMcp.MCP.Protocol do
 
   defp tool_definitions do
     [
+      %{
+        name: "get_task",
+        description: "Read the current state of a task note. Call this before define_task to check what already exists.",
+        inputSchema: %{
+          type: "object",
+          properties: %{
+            task_name: %{type: "string"}
+          },
+          required: ["task_name"]
+        }
+      },
       %{
         name: "define_task",
         description: """
@@ -111,6 +135,39 @@ defmodule PersonalMcp.MCP.Protocol do
             task_name: %{type: "string"}
           },
           required: ["task_name"]
+        }
+      },
+      %{
+        name: "archive_task",
+        description: "Move a completed task from 01 Tasks/ to 06 Completed/. Call after complete_task review is signed off.",
+        inputSchema: %{
+          type: "object",
+          properties: %{task_name: %{type: "string"}},
+          required: ["task_name"]
+        }
+      },
+      %{
+        name: "append_log",
+        description: "Append a timestamped entry to a task's log.md.",
+        inputSchema: %{
+          type: "object",
+          properties: %{
+            task_name: %{type: "string"},
+            entry: %{type: "string"}
+          },
+          required: ["task_name", "entry"]
+        }
+      },
+      %{
+        name: "update_notes",
+        description: "Replace the entire Notes section of a task. Pass the full Notes content as markdown — question and answer pairs, resolved markers, open items. Claude constructs the markdown, this tool just writes it.",
+        inputSchema: %{
+          type: "object",
+          properties: %{
+            task_name: %{type: "string"},
+            content: %{type: "string", description: "Full markdown content for the Notes section"}
+          },
+          required: ["task_name", "content"]
         }
       }
     ]

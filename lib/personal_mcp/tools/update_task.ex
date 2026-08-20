@@ -1,5 +1,5 @@
 defmodule PersonalMcp.Tools.UpdateTask do
-  alias McpServer.Vault
+  alias PersonalMcp.Vault
 
   def call(%{"task_name" => task_name} = args) do
     complete = args["complete_subtasks"] || []

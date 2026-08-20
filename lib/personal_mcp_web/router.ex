@@ -9,5 +9,6 @@ defmodule PersonalMcpWeb.Router do
   scope "/", PersonalMcpWeb do
     pipe_through :mcp
     post "/mcp", McpController, :handle
+    get "/mcp", McpController, :stream
   end
 end

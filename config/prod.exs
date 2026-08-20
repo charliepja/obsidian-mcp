@@ -8,7 +8,7 @@ config :personal_mcp, PersonalMcpWeb.Endpoint,
     rewrite_on: [:x_forwarded_proto],
     exclude: [
       # paths: ["/health"],
-      hosts: ["localhost", "127.0.0.1"]
+      hosts: ["localhost", "0.0.0.0"]
     ]
   ]
 

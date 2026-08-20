@@ -1,5 +1,5 @@
 defmodule PersonalMcp.Tools.DefineTask do
-  alias McpServer.Vault
+  alias PersonalMcp.Vault
 
   def call(%{"task_name" => task_name} = args) do
     fields = %{

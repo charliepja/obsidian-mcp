@@ -7,6 +7,7 @@ defmodule PersonalMcp.Application do
 
   @impl true
   def start(_type, _args) do
+    IO.inspect(label: "### STARTED ###")
     children = [
       PersonalMcpWeb.Telemetry,
       {DNSCluster, query: Application.get_env(:personal_mcp, :dns_cluster_query) || :ignore},

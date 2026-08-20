@@ -4,7 +4,7 @@ defmodule PersonalMcpWeb.Plugs.Auth do
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    expected = Application.get_env(:mcp_server, :auth)[:api_key]
+    expected = Application.get_env(:personal_mcp, :auth)[:api_key]
 
     case get_req_header(conn, "authorization") do
       ["Bearer " <> key] when key == expected ->

@@ -1,7 +1,8 @@
-defmodule McpServer.Vault do
+defmodule PersonalMcp.Vault do
   alias PersonalMcp.Github.Client
 
   @tasks_folder "01. Current Work"
+  @completed_folder "06 Completed Work"
 
   def note_path(task_name), do: "#{@tasks_folder}/#{task_name}/#{task_name}.md"
   def log_path(task_name), do: "#{@tasks_folder}/#{task_name}/log.md"
@@ -61,6 +62,34 @@ defmodule McpServer.Vault do
     end
   end
 
+  def archive_task(task_name) do
+    with {:ok, %{content: note, sha: note_sha}} <- Client.get_file(note_path(task_name)),
+         {:ok, %{content: log_content, sha: log_sha}} <- Client.get_file(log_path(task_name)),
+         {:ok, _} <- Client.put_file("#{@completed_folder}/#{task_name}/#{task_name}.md", note, "task: archive #{task_name}"),
+         {:ok, _} <- Client.put_file("#{@completed_folder}/#{task_name}/log.md", log_content, "task: archive log for #{task_name}"),
+         :ok <- Client.delete_file(note_path(task_name), note_sha, "task: remove #{task_name} from active"),
+         :ok <- Client.delete_file(log_path(task_name), log_sha, "task: remove log for #{task_name} from active") do
+      :ok
+    end
+  end
+
+  def append_log(task_name, entry) do
+    with {:ok, %{content: current, sha: sha}} <- Client.get_file(log_path(task_name)) do
+      timestamp = DateTime.utc_now() |> DateTime.to_string()
+      updated = current <> "\n---\n\n**#{timestamp}**\n\n#{entry}\n"
+      Client.put_file(log_path(task_name), updated, "log: update #{task_name}", sha)
+    end
+  end
+
+  def update_notes(task_name, content) do
+    with {:ok, %{content: current, sha: sha}} <- Client.get_file(note_path(task_name)) do
+      updated = current
+      |> String.replace("\r\n", "\n")
+      |> update_section("Notes", "Resources", content)
+      Client.put_file(note_path(task_name), updated, "task: update notes for #{task_name}", sha)
+    end
+  end
+
   # Private
 
   defp build_note(task_name, fields) do
@@ -101,37 +130,56 @@ defmodule McpServer.Vault do
   end
 
   defp apply_field_updates(content, fields) do
-    Enum.reduce(fields, content, fn
-      {_key, nil}, acc ->
-        acc
+    content = String.replace(content, "\r\n", "\n")
 
-      {:overview, value}, acc ->
-        replace_section(acc, "Overview", "Sub-tasks", value)
-
-      {:subtasks, subtasks}, acc ->
-        list = Enum.map_join(subtasks, "\n", &"- [ ] #{&1}")
-        replace_section(acc, "Sub-tasks", "Notes", list)
-
-      {:notes, value}, acc ->
-        replace_section(acc, "Notes", "Resources", value)
-
-      {:resources, value}, acc ->
-        Regex.replace(~r/## Resources\n\n.*/s, acc, "## Resources\n\n#{value}")
-
-      {key, value}, acc when key in [:priority, :due, :summary] ->
-        Regex.replace(~r/^#{key}: .*$/m, acc, "#{key}: #{value}")
-
-      _, acc ->
-        acc
-    end)
+    content
+    |> update_frontmatter_field("priority", fields[:priority])
+    |> update_frontmatter_field("due", fields[:due])
+    |> update_frontmatter_field("summary", fields[:summary])
+    |> update_frontmatter_field("tags", format_tags(fields[:tags]))
+    |> update_section("Overview", "Sub-tasks", fields[:overview])
+    |> update_section("Sub-tasks", "Notes", format_subtask_list(fields[:subtasks]))
+    |> update_section("Notes", "Resources", fields[:notes])
+    |> update_last_section("Resources", fields[:resources])
   end
 
-  defp replace_section(content, from, to, replacement) do
+  defp update_frontmatter_field(content, _key, nil), do: content
+  defp update_frontmatter_field(content, key, value) do
+    String.replace(content, ~r/^#{key}: .*$/m, "#{key}: #{value}")
+  end
+
+  defp update_section(content, _from, _to, nil), do: content
+  defp update_section(content, from, to, value) do
     Regex.replace(
-      ~r/(## #{from}\n\n).*?(\n## #{to})/s,
+      ~r/## #{from}\n+.*?\n+## #{to}/s,
       content,
-      "\\1#{replacement}\\2"
+      escape_replacement("## #{from}\n\n#{value}\n\n## #{to}")
     )
+  end
+
+  defp update_last_section(content, _name, nil), do: content
+  defp update_last_section(content, name, value) do
+    Regex.replace(
+      ~r/## #{name}\n+.*/s,
+      content,
+      escape_replacement("## #{name}\n\n#{value}")
+    )
+  end
+
+  defp update_last_section(content, _name, nil), do: content
+  defp update_last_section(content, name, value) do
+    Regex.replace(
+      ~r/## #{name}\n\n.*/s,
+      content,
+      escape_replacement("## #{name}\n\n#{value}")
+    )
+  end
+
+  defp escape_replacement(str), do: String.replace(str, "\\", "\\\\")
+
+  defp format_subtask_list(nil), do: nil
+  defp format_subtask_list(subtasks) do
+    Enum.map_join(subtasks, "\n", &"- [ ] #{&1}")
   end
 
   defp mark_complete(content, []), do: content
@@ -155,4 +203,7 @@ defmodule McpServer.Vault do
       nil -> ""
     end
   end
+
+  defp format_tags(nil), do: nil
+  defp format_tags(tags), do: Jason.encode!(tags)
 end

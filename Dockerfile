@@ -1,36 +1,42 @@
-FROM hexpm/elixir:1.17.0-erlang-27.0-debian-bookworm-20240612-slim AS build
+FROM elixir:1.20-otp-29-slim AS builder
 
 WORKDIR /app
 
 RUN apt-get update && \
-    apt-get install -y build-essential git && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get install -y \
+      build-essential git \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV MIX_ENV=prod
 
-COPY mix.exs mix.lock ./
-RUN mix local.hex --force && mix local.rebar --force
-RUN mix deps.get --only prod
-RUN mix deps.compile
+COPY . /app
 
-COPY config config
-COPY lib lib
+RUN mix local.hex --force && \
+    mix local.rebar --force && \
+    mix deps.get && \
+    mix deps.compile
 
 RUN mix compile
 RUN mix release
 
 # ---
 
-FROM debian:bookworm-slim AS runtime
+FROM ubuntu:noble AS runtime
 
 WORKDIR /app
 
 RUN apt-get update && \
-    apt-get install -y libssl3 libncurses6 && \
+    apt-get install -y libncurses6 locales && \
+    locale-gen en_US.UTF-8 && \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /app/_build/prod/rel/personal_mcp ./
+ENV LANG=en_US.UTF-8
+
+COPY --from=builder /usr/lib/x86_64-linux-gnu/libcrypto.so.3 /usr/lib/x86_64-linux-gnu/
+COPY --from=builder /usr/lib/x86_64-linux-gnu/libssl.so.3 /usr/lib/x86_64-linux-gnu/
+COPY --from=builder /app/_build/prod/rel/personal_mcp ./
 
 EXPOSE 4000
 
-CMD ["./bin/personal_mcp", "start"]
+ENTRYPOINT ["./bin/personal_mcp"]
+CMD ["start"]

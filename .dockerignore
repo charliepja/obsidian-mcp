@@ -1,0 +1,11 @@
+*
+.*
+
+!config
+!lib
+!mix.exs
+!mix.lock
+!priv
+
+priv/static
+config/*.secret.exs
