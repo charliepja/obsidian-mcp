@@ -1,0 +1,7 @@
+services:
+  mcp:
+    build: .
+    env_file: .env
+    ports:
+      - "127.0.0.1:4000:4000"
+    restart: unless-stopped
